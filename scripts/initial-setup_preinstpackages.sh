@@ -43,24 +43,6 @@ main() {
 		# pimp apt to retry 3 times (for weak internet connections)
 		echo "APT::Acquire::Retries \"3\";" > /etc/apt/apt.conf.d/80-retries
 		
-		apt-get --yes update 
-		
-		# setup and configure required packages. blink blue for every step
-		aptInstall "git" 0.5
-		aptInstall "curl" 0.5
-		aptInstall "build-essential" 0.5
-		aptInstall "python-dev" 0.5
-		aptInstall "python-pil" 0.5
-		aptInstall "python-smbus" 0.5
-		aptInstall "python-setuptools" 0.5
-		aptInstall "python-pip" 0.5
-		aptInstall "i2c-tools" 0.5
-		aptInstall "lm-sensors" 0.5
-		aptInstall "net-tools" 0.5
-		
-		say "install psutil" "log"
-		sudo pip install psutil
-		
 		say "turn also green LED on" "log"
 		cd /sys/class/gpio
 		echo $RGB_GPIO_GREEN > export
