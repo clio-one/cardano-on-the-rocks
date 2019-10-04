@@ -11,9 +11,9 @@ First take a look at the settings section at the top of the script.
 
 *NODE_REST_URL* is what you have set in your node-config.yaml file as *rest: listen:* 
 
-you can execute this script right out from the cloned repository on your computer, to create the *BASE_FOLDER*.
+you can execute this script right out from the cloned repository on your computer *BASE_FOLDER* is where all your Jormungandr node related files reside.
 
-*FALLET_FOLDER* and *POOL_FOLDER* subdirectories then will contain all the keys and certificates created by the tool.
+*WALLET_FOLDER* and *POOL_FOLDER* subdirectories then will contain all the keys and certificates created by the tool.
 
 If *JTOOLS_LOG* is set, the tool will keep an archive of all it's activities, which may help remembering when and what was done in the past.
 
@@ -27,7 +27,7 @@ Choose the right *ASSET_PLATTFORM* for your operating system by commenting out a
 
 
 
-This will automatically determine the latest Jormungandr release version. In case there is a newer one it offers you to download and unpack it into the BASE_FOLDER. 
+This will automatically determine the latest Jormungandr release version (based on what you choose as ASSET_PLATTFORM in the settings. If there is a newer version available, it offers you to download and unpack it into the BASE_FOLDER. 
 
 ```
 currently installer: 0.5.3

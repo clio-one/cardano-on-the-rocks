@@ -14,8 +14,11 @@
 NODE_REST_URL="http://127.0.0.1:8080/api"
 
 BASE_FOLDER=~/jormungandr/
+JCLI=${BASE_FOLDER}"jcli"
+
 WALLET_FOLDER=$BASE_FOLDER"wallet"
 POOL_FOLDER=$BASE_FOLDER"pool"
+
 
 # log jtools activities (comment out for no logs)
 JTOOLS_LOG=${BASE_FOLDER}/jtools-history.log
@@ -78,8 +81,8 @@ case $OPERATION in
 	LATEST_RELEASE_PUBLISHED=$(echo $LATEST_RELEASE_JSON | jq -r .published_at)
 	LATEST_RELEASE_CLEAN=$(echo ${LATEST_RELEASE} | cut -c2-)
 
-	if [ -f "./jcli" ]; then
-		CURRENT_VERSION=$(./jcli --version | cut -c 6-)
+	if [ -f "${JCLI}" ]; then
+		CURRENT_VERSION=$(${JCLI} --version | cut -c 6-)
 		
 		say "Currently installed: ${CURRENT_VERSION}"
 		say "Latest release:      ${LATEST_RELEASE_CLEAN} (${LATEST_RELEASE_PUBLISHED})"
@@ -143,14 +146,14 @@ case $OPERATION in
 		fi
 		
 		# create a personal wallet key
-		./jcli key generate --type=Ed25519 > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.key"
+		${JCLI} key generate --type=Ed25519 > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.key"
 		MY_ED25519_key=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.key")
 		MY_ED25519_file="${WALLET_FOLDER}/${WALLET_NAME}/ed25519.key"
-		echo "$MY_ED25519_key" | ./jcli key to-public > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.pub"
+		echo "$MY_ED25519_key" | ${JCLI} key to-public > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.pub"
 		MY_ED25519_pub=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.pub")
 
 		# extract account address from wallet key
-		./jcli address account ${MY_ED25519_pub} --testing > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account"
+		${JCLI} address account ${MY_ED25519_pub} --testing > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account"
 		MY_ED25519_address=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account")
 		
 		say "New wallet $WALLET_NAME" "log"
@@ -165,8 +168,8 @@ case $OPERATION in
 		WALLET_NAME=${3}
 		
 		if [ ${#WALLET_NAME} == "62" ]; then # looks like a 62 char account address
-			RESULT=$(./jcli rest v0 account get ${WALLET_NAME} --host ${NODE_REST_URL} )
-			WALLET_BALANCE=$(./jcli rest v0 account get ${WALLET_NAME} --host ${NODE_REST_URL} | grep '^value:' | sed -e 's/value: //' )
+			RESULT=$(${JCLI} rest v0 account get ${WALLET_NAME} --host ${NODE_REST_URL} )
+			WALLET_BALANCE=$(${JCLI} rest v0 account get ${WALLET_NAME} --host ${NODE_REST_URL} | grep '^value:' | sed -e 's/value: //' )
 			WALLET_BALANCE_NICE=$(printf "%'d Lovelaces" $WALLET_BALANCE)
 			say "Address: ${WALLET_ADDRESS}" "log"
 			say "  Balance: ${WALLET_BALANCE_NICE}" "log"
@@ -174,8 +177,8 @@ case $OPERATION in
 		else # look for a local wallet account address
 			if [ -f "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account" ]; then
 				WALLET_ADDRESS=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account")
-				RESULT=$(./jcli rest v0 account get ${WALLET_ADDRESS} --host ${NODE_REST_URL} )
-				WALLET_BALANCE=$(./jcli rest v0 account get ${WALLET_ADDRESS} --host ${NODE_REST_URL} | grep '^value:' | sed -e 's/value: //' )
+				RESULT=$(${JCLI} rest v0 account get ${WALLET_ADDRESS} --host ${NODE_REST_URL} )
+				WALLET_BALANCE=$(${JCLI} rest v0 account get ${WALLET_ADDRESS} --host ${NODE_REST_URL} | grep '^value:' | sed -e 's/value: //' )
 				WALLET_BALANCE_NICE=$(printf "%'d Lovelaces" $WALLET_BALANCE)
 				say "Address: ${WALLET_ADDRESS}" "log"
 				say "  Balance:    ${WALLET_BALANCE_NICE}" "log"
@@ -193,7 +196,7 @@ case $OPERATION in
 		WALLET_NAME=${3}
 
 		if [ -f "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account" ]; then
-			WALLET_BALANCE=$(./jcli rest v0 account get $(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account") --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
+			WALLET_BALANCE=$(${JCLI} rest v0 account get $(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account") --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
 			WALLET_BALANCE_NICE=$(printf "%'d Lovelaces" ${WALLET_BALANCE})
 			
 			if [[ ${WALLET_BALANCE} == "" ]]; then
@@ -290,13 +293,13 @@ case $OPERATION in
 		fi
 		
 		# get the source wallet's state
-		SOURCE_BALANCE=$(./jcli rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
+		SOURCE_BALANCE=$(${JCLI} rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
 		if (( $SOURCE_BALANCE == 0 )); then
 			echo "ERROR: source wallet balance is zero"
 			exit 1
 		fi
 		SOURCE_BALANCE_NICE=$(printf "%'d Lovelaces" ${SOURCE_BALANCE})
-		SOURCE_COUNTER=$(./jcli rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^counter:' | sed -e 's/counter: //' )
+		SOURCE_COUNTER=$(${JCLI} rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^counter:' | sed -e 's/counter: //' )
 		
 		# read the nodes blockchain settings (parameters are required for the next transactions)
 		settings="$(curl -s ${NODE_REST_URL}/v0/settings)"
@@ -315,25 +318,25 @@ case $OPERATION in
 
 		TMPDIR=$(mktemp -d)
 		STAGING_FILE="${TMPDIR}/staging.$$.transaction"
-		./jcli transaction new --staging ${STAGING_FILE}
-		./jcli transaction add-account "${SOURCE_ADDRESS}" "${AMOUNT_WITH_FEES}" --staging "${STAGING_FILE}"
-		./jcli transaction add-output "${DESTINATION_ADDRESS}" "${AMOUNT}" --staging "${STAGING_FILE}"
-		./jcli transaction finalize --staging ${STAGING_FILE}
-		TRANSACTION_ID=$(./jcli transaction id --staging ${STAGING_FILE})
+		${JCLI} transaction new --staging ${STAGING_FILE}
+		${JCLI} transaction add-account "${SOURCE_ADDRESS}" "${AMOUNT_WITH_FEES}" --staging "${STAGING_FILE}"
+		${JCLI} transaction add-output "${DESTINATION_ADDRESS}" "${AMOUNT}" --staging "${STAGING_FILE}"
+		${JCLI} transaction finalize --staging ${STAGING_FILE}
+		TRANSACTION_ID=$(${JCLI} transaction id --staging ${STAGING_FILE})
 		WITNESS_SECRET_FILE="${TMPDIR}/witness.secret.$$"
 		WITNESS_OUTPUT_FILE="${TMPDIR}/witness.out.$$"
 
 		printf "${SOURCE_KEY}" > ${WITNESS_SECRET_FILE}
 
-		./jcli transaction make-witness ${TRANSACTION_ID} \
+		${JCLI} transaction make-witness ${TRANSACTION_ID} \
 			--genesis-block-hash ${BLOCK0_HASH} \
 			--type "account" --account-spending-counter "${SOURCE_COUNTER}" \
 			${WITNESS_OUTPUT_FILE} ${WITNESS_SECRET_FILE}
-		./jcli transaction add-witness ${WITNESS_OUTPUT_FILE} --staging "${STAGING_FILE}"
+		${JCLI} transaction add-witness ${WITNESS_OUTPUT_FILE} --staging "${STAGING_FILE}"
 
 		# Finalize the transaction and send it
-		./jcli transaction seal --staging "${STAGING_FILE}"
-		TXID=$(./jcli transaction to-message --staging "${STAGING_FILE}" | ./jcli rest v0 message post --host "${NODE_REST_URL}")
+		${JCLI} transaction seal --staging "${STAGING_FILE}"
+		TXID=$(${JCLI} transaction to-message --staging "${STAGING_FILE}" | ${JCLI} rest v0 message post --host "${NODE_REST_URL}")
 
 		rm -r ${TMPDIR}
 
@@ -392,13 +395,13 @@ case $OPERATION in
 			exit 1
 		fi
 		
-		SOURCE_BALANCE=$(./jcli rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
+		SOURCE_BALANCE=$(${JCLI} rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
 		if (( $SOURCE_BALANCE == 0 )); then
 			echo "ERROR: source wallet balance is zero"
 			exit 1
 		fi
 		SOURCE_BALANCE_NICE=$(printf "%'d Lovelaces" ${SOURCE_BALANCE})
-		SOURCE_COUNTER=$(./jcli rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^counter:' | sed -e 's/counter: //' )
+		SOURCE_COUNTER=$(${JCLI} rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^counter:' | sed -e 's/counter: //' )
 		
 		# read the nodes blockchain settings (parameters are required for the next transactions)
 		settings="$(curl -s ${NODE_REST_URL}/v0/settings)"
@@ -417,18 +420,18 @@ case $OPERATION in
 		mkdir -p "${POOL_FOLDER}/${POOL_NAME}"
 
 		# generate pool owner wallet
-		./jcli key generate --type=Ed25519 > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.key"
-		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.key" | ./jcli key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.pub"
-		./jcli address account "$(cat ${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.pub)" --testing > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.address"
+		${JCLI} key generate --type=Ed25519 > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.key"
+		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.key" | ${JCLI} key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.pub"
+		${JCLI} address account "$(cat ${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.pub)" --testing > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.address"
 
 		# generate pool KES and VRF certificates
-		./jcli key generate --type=SumEd25519_12 > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.key"
-		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.key" | ./jcli key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.pub"
-		./jcli key generate --type=Curve25519_2HashDH > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.key"
-		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.key" | ./jcli key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.pub"
+		${JCLI} key generate --type=SumEd25519_12 > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.key"
+		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.key" | ${JCLI} key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.pub"
+		${JCLI} key generate --type=Curve25519_2HashDH > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.key"
+		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.key" | ${JCLI} key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.pub"
 
 		# build stake pool certificate
-		./jcli certificate new stake-pool-registration \
+		${JCLI} certificate new stake-pool-registration \
 		--kes-key $(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.pub") \
 		--vrf-key $(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.pub") \
 		--owner $(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.pub") \
@@ -437,10 +440,10 @@ case $OPERATION in
 		--start-validity 0 > "$POOL_FOLDER/${POOL_NAME}/stake_pool.cert"
 
 		# sign the stake pool certificate with the pool owner wallet
-		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.cert" | ./jcli certificate sign "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.key" > "${POOL_FOLDER}/${POOL_NAME}/stake_pool.signcert"
+		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.cert" | ${JCLI} certificate sign "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.key" > "${POOL_FOLDER}/${POOL_NAME}/stake_pool.signcert"
 
 		# get the stake pool ID
-		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.signcert" | ./jcli certificate get-stake-pool-id > "${POOL_FOLDER}/${POOL_NAME}/stake_pool.id"
+		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.signcert" | ${JCLI} certificate get-stake-pool-id > "${POOL_FOLDER}/${POOL_NAME}/stake_pool.id"
 		POOLID=$(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.id")
 
 		# note pool-ID, vrf and KES keys into a secret file
@@ -448,25 +451,25 @@ case $OPERATION in
 		
 		TMPDIR=$(mktemp -d)
 		STAGING_FILE="${TMPDIR}/staging.$$.transaction"
-		./jcli transaction new --staging ${STAGING_FILE}
-		./jcli transaction add-account "${SOURCE_ADDRESS}" "${AMOUNT_WITH_FEES}" --staging "${STAGING_FILE}"
-		./jcli transaction add-certificate --staging ${STAGING_FILE} $(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.signcert")
-		./jcli transaction finalize --staging ${STAGING_FILE}
-		TRANSACTION_ID=$(./jcli transaction id --staging ${STAGING_FILE})
+		${JCLI} transaction new --staging ${STAGING_FILE}
+		${JCLI} transaction add-account "${SOURCE_ADDRESS}" "${AMOUNT_WITH_FEES}" --staging "${STAGING_FILE}"
+		${JCLI} transaction add-certificate --staging ${STAGING_FILE} $(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.signcert")
+		${JCLI} transaction finalize --staging ${STAGING_FILE}
+		TRANSACTION_ID=$(${JCLI} transaction id --staging ${STAGING_FILE})
 		WITNESS_SECRET_FILE="${TMPDIR}/witness.secret.$$"
 		WITNESS_OUTPUT_FILE="${TMPDIR}/witness.out.$$"
 
 		printf "${SOURCE_KEY}" > ${WITNESS_SECRET_FILE}
 		
-		./jcli transaction make-witness ${TRANSACTION_ID} \
+		${JCLI} transaction make-witness ${TRANSACTION_ID} \
 			--genesis-block-hash ${BLOCK0_HASH} \
 			--type "account" --account-spending-counter "${SOURCE_COUNTER}" \
 			${WITNESS_OUTPUT_FILE} ${WITNESS_SECRET_FILE}
-		./jcli transaction add-witness ${WITNESS_OUTPUT_FILE} --staging "${STAGING_FILE}"
+		${JCLI} transaction add-witness ${WITNESS_OUTPUT_FILE} --staging "${STAGING_FILE}"
 
 		# Finalize the transaction and send it
-		./jcli transaction seal --staging "${STAGING_FILE}"
-		TXID=$(./jcli transaction to-message --staging "${STAGING_FILE}" | ./jcli rest v0 message post --host "${NODE_REST_URL}")
+		${JCLI} transaction seal --staging "${STAGING_FILE}"
+		TXID=$(${JCLI} transaction to-message --staging "${STAGING_FILE}" | ${JCLI} rest v0 message post --host "${NODE_REST_URL}")
 
 		rm -r ${TMPDIR}
 
@@ -480,7 +483,7 @@ case $OPERATION in
 
 	  show)  # [POOL_ID]
 		
-		printf '%b\n' $(./jcli rest v0 stake-pools get --host "${NODE_REST_URL}" | grep ${3})
+		printf '%b\n' $(${JCLI} rest v0 stake-pools get --host "${NODE_REST_URL}" | grep ${3})
 	
 	  ;; ###################################################################
 
@@ -529,13 +532,13 @@ case $OPERATION in
 			echo "Error: no wallet $WALLET_NAME found"
 			exit 1
 		fi
-		SOURCE_BALANCE=$(./jcli rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
+		SOURCE_BALANCE=$(${JCLI} rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
 		if (( $SOURCE_BALANCE == 0 )); then
 			echo "ERROR: source wallet balance is zero"
 			exit 1
 		fi
 		SOURCE_BALANCE_NICE=$(printf "%'d Lovelaces" ${SOURCE_BALANCE})
-		SOURCE_COUNTER=$(./jcli rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^counter:' | sed -e 's/counter: //' )
+		SOURCE_COUNTER=$(${JCLI} rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^counter:' | sed -e 's/counter: //' )
 
 		# read the nodes blockchain settings (parameters are required for the next transactions)
 		settings="$(curl -s ${NODE_REST_URL}/v0/settings)"
@@ -557,37 +560,37 @@ case $OPERATION in
 		fi
 		
 		# create a personal wallet key
-		./jcli key generate --type=Ed25519 > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.key"
+		${JCLI} key generate --type=Ed25519 > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.key"
 		MY_ED25519_stake_key=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.key")
 		MY_ED25519_stake_file="${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.key"
-		echo "$MY_ED25519_stake_key" | ./jcli key to-public > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.pub"
+		echo "$MY_ED25519_stake_key" | ${JCLI} key to-public > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.pub"
 		MY_ED25519_stake_pub=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.pub")
 
 		# generate a delegation certificate (private wallet > stake pool)
-		./jcli certificate new stake-delegation ${POOLID} ${SOURCE_PUB} > "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.cert"
-		cat "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.cert" | ./jcli certificate sign ${MY_ED25519_stake_file} > "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.signcert"
+		${JCLI} certificate new stake-delegation ${POOLID} ${SOURCE_PUB} > "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.cert"
+		cat "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.cert" | ${JCLI} certificate sign ${MY_ED25519_stake_file} > "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.signcert"
 		
 		TMPDIR=$(mktemp -d)
 		STAGING_FILE="${TMPDIR}/staging.$$.transaction"
-		./jcli transaction new --staging ${STAGING_FILE}
-		./jcli transaction add-account "${SOURCE_ADDRESS}" "${AMOUNT_WITH_FEES}" --staging "${STAGING_FILE}"
-		./jcli transaction add-certificate --staging ${STAGING_FILE} $(cat "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.signcert")
-		./jcli transaction finalize --staging ${STAGING_FILE}
-		TRANSACTION_ID=$(./jcli transaction id --staging ${STAGING_FILE})
+		${JCLI} transaction new --staging ${STAGING_FILE}
+		${JCLI} transaction add-account "${SOURCE_ADDRESS}" "${AMOUNT_WITH_FEES}" --staging "${STAGING_FILE}"
+		${JCLI} transaction add-certificate --staging ${STAGING_FILE} $(cat "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.signcert")
+		${JCLI} transaction finalize --staging ${STAGING_FILE}
+		TRANSACTION_ID=$(${JCLI} transaction id --staging ${STAGING_FILE})
 		WITNESS_SECRET_FILE="${TMPDIR}/witness.secret.$$"
 		WITNESS_OUTPUT_FILE="${TMPDIR}/witness.out.$$"
 
 		printf "${SOURCE_KEY}" > ${WITNESS_SECRET_FILE}
 		
-		./jcli transaction make-witness ${TRANSACTION_ID} \
+		${JCLI} transaction make-witness ${TRANSACTION_ID} \
 			--genesis-block-hash ${BLOCK0_HASH} \
 			--type "account" --account-spending-counter "${SOURCE_COUNTER}" \
 			${WITNESS_OUTPUT_FILE} ${WITNESS_SECRET_FILE}
-		./jcli transaction add-witness ${WITNESS_OUTPUT_FILE} --staging "${STAGING_FILE}"
+		${JCLI} transaction add-witness ${WITNESS_OUTPUT_FILE} --staging "${STAGING_FILE}"
 
 		# Finalize the transaction and send it
-		./jcli transaction seal --staging "${STAGING_FILE}"
-		TXID=$(./jcli transaction to-message --staging "${STAGING_FILE}" | ./jcli rest v0 message post --host "${NODE_REST_URL}")
+		${JCLI} transaction seal --staging "${STAGING_FILE}"
+		TXID=$(${JCLI} transaction to-message --staging "${STAGING_FILE}" | ${JCLI} rest v0 message post --host "${NODE_REST_URL}")
 
 		rm -r ${TMPDIR}
 
