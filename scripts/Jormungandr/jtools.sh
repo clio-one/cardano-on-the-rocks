@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# jtools version 0.1
+# jtools version 0.2
 # 
 # inspired by scripts from @NicolasDP and @disassembler
 # 
@@ -11,7 +11,7 @@
 
 ############### script settings ###################################
 
-NODE_REST_URL="http://127.0.0.1:8080/api"
+NODE_REST_URL="http://127.0.0.1:8081/api"
 
 BASE_FOLDER=~/jormungandr/
 JCLI=${BASE_FOLDER}"jcli"
@@ -21,12 +21,12 @@ POOL_FOLDER=$BASE_FOLDER"pool"
 
 
 # log jtools activities (comment out for no logs)
-JTOOLS_LOG=${BASE_FOLDER}/jtools-history.log
+JTOOLS_LOG=${BASE_FOLDER}jtools-history.log
 
 # update from asset
-ASSET_PLATTFORM="x86_64-unknown-linux-gnu"		# Debian, Ubuntu, CentOS 8,...
+#ASSET_PLATTFORM="x86_64-unknown-linux-gnu"		# Debian, Ubuntu, CentOS 8,...
 #ASSET_PLATTFORM="x86_64-unknown-linux-musl"	# CentOS 7, ...
-#ASSET_PLATTFORM="aarch64-unknown-linux-gnu" 	# Armbian, Raspian, RockPi, ARM 64bit, ...
+ASSET_PLATTFORM="aarch64-unknown-linux-gnu" 	# Armbian, Raspian, RockPi, ARM 64bit, ...
 
 ###################################################################
 
@@ -38,6 +38,7 @@ usage() {
     echo "   $0 update"
     echo ""
     echo "   $0 wallet new [WALLET_NAME]"
+    echo "   $0 wallet list"
     echo "   $0 wallet show [WALLET_NAME]"
     echo "   $0 wallet remove [WALLET_NAME]"
     echo ""
@@ -65,7 +66,6 @@ if [ ${#} -lt 1 ]; then
     exit 1
 fi
 
-mkdir -p ${BASE_FOLDER}
 
 # check for required command line tools
 need_cmd "curl"
@@ -76,46 +76,106 @@ case $OPERATION in
 
   update) 
 	
-	LATEST_RELEASE_JSON=$(curl --proto '=https' --tlsv1.2 -sSf https://api.github.com/repos/input-output-hk/jormungandr/releases/latest)
-	LATEST_RELEASE=$(echo $LATEST_RELEASE_JSON | jq -r .tag_name)
-	LATEST_RELEASE_PUBLISHED=$(echo $LATEST_RELEASE_JSON | jq -r .published_at)
-	LATEST_RELEASE_CLEAN=$(echo ${LATEST_RELEASE} | cut -c2-)
+	if [ ${#} -lt 2 ]; then
+		DESIRED_RELEASE_JSON=$(curl --proto '=https' --tlsv1.2 -sSf https://api.github.com/repos/input-output-hk/jormungandr/releases/latest)
+	else
+		DESIRED_RELEASE_JSON=$(curl --proto '=https' --tlsv1.2 -sSf https://api.github.com/repos/input-output-hk/jormungandr/releases/tags/${2})
+	fi	
+	DESIRED_RELEASE=$(echo $DESIRED_RELEASE_JSON | jq -r .tag_name)
+	DESIRED_RELEASE_PUBLISHED=$(echo $DESIRED_RELEASE_JSON | jq -r .published_at)
+	DESIRED_RELEASE_CLEAN=$(echo ${DESIRED_RELEASE} | cut -c2-)
 
 	if [ -f "${JCLI}" ]; then
 		CURRENT_VERSION=$(${JCLI} --version | cut -c 6-)
 		
 		say "Currently installed: ${CURRENT_VERSION}"
-		say "Latest release:      ${LATEST_RELEASE_CLEAN} (${LATEST_RELEASE_PUBLISHED})"
-		if [ "${LATEST_RELEASE_CLEAN}" != "${CURRENT_VERSION}" ]; then
-			read -n 1 -p "Would you like to upgrade to the latest release? (y/N)? " answer
+		say "Desired release:      ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})"
+		if [ "${DESIRED_RELEASE_CLEAN}" != "${CURRENT_VERSION}" ]; then
+			read -n 1 -p "Would you like to upgrade to this release? (y/N)? " answer
 			case ${answer:0:1} in
 				y|Y )
-					FILE="jormungandr-"${LATEST_RELEASE}"-"${ASSET_PLATTFORM}".tar.gz"
-					URL="https://github.com/input-output-hk/jormungandr/releases/download/"${LATEST_RELEASE}"/"${FILE}
+					FILE="jormungandr-"${DESIRED_RELEASE}"-"${ASSET_PLATTFORM}".tar.gz"
+					URL="https://github.com/input-output-hk/jormungandr/releases/download/"${DESIRED_RELEASE}"/"${FILE}
+					echo -e "\nDownload $FILE ..."
 					curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${BASE_FOLDER}${FILE}
+					#mkdir -p bin/rollback
+					#cp -f bin/* bin/rollback
+					#rm -f bin/*
+					#mkdir -p config/rollback
+					#cp -f config/* config/rollback
+					#rm -f config/*
+					#tar -xzf $FILE -C bin
 					tar -xzf $FILE
 					rm $FILE
-					say "updated Jormungandr from ${CURRENT_VERSION} to ${LATEST_RELEASE_CLEAN}" "log"
+					say "updated Jormungandr from ${CURRENT_VERSION} to ${DESIRED_RELEASE_CLEAN}" "log"
 				;;
 			esac
 			
 		fi
 	else # 
 		say "No jcli binary found"
-		say "Latest available release: ${LATEST_RELEASE_CLEAN} (${LATEST_RELEASE_PUBLISHED})"
-		read -n 1 -p "Would you like to install the latest release? (Y/n)? " answer
+		say "Desired available release: ${DESIRED_RELEASE_CLEAN} (${DESIRED_RELEASE_PUBLISHED})"
+		read -n 1 -p "Would you like to install this release? (Y/n)? " answer
 		case ${answer:0:1} in
 			n|N )
 				say "Well, that was a pleasant but brief pleasure. Bye bye!"
 			;;
 			* )
-				FILE="jormungandr-"${LATEST_RELEASE}"-"${ASSET_PLATTFORM}".tar.gz"
-				URL="https://github.com/input-output-hk/jormungandr/releases/download/"${LATEST_RELEASE}"/"${FILE}
+				FILE="jormungandr-"${DESIRED_RELEASE}"-"${ASSET_PLATTFORM}".tar.gz"
+				URL="https://github.com/input-output-hk/jormungandr/releases/download/"${DESIRED_RELEASE}"/"${FILE}
 				echo -e "\nDownload $FILE ..."
 				curl --proto '=https' --tlsv1.2 -L -URL ${URL} -O ${BASE_FOLDER}${FILE}
+				mkdir -p ${BASE_FOLDER}
+				#mkdir -p ${BASE_FOLDER}bin
+				#mkdir -p ${BASE_FOLDER}config
+				mkdir -p ${BASE_FOLDER}logs
+				mkdir -p ${BASE_FOLDER}scripts
+				#mkdir -p ${BASE_FOLDER}www/cgi-bin
+				#tar -xzf $FILE -C bin
 				tar -xzf $FILE
 				rm $FILE
-				say "installed Jormungandr ${LATEST_RELEASE_CLEAN}" "log"
+: '				my_public_ip=$(curl -4 ifconfig.co)
+				cat > config/node-config.yaml <<- EOF
+storage: "${BASE_FOLDER}storage"
+log:
+  format: "plain"
+  level: "info"
+  output: "stdout"
+rest:
+  listen: "127.0.0.1:8081"
+p2p:
+  trusted_peers:
+    - address: "/ip4/3.115.194.22/tcp/3000"
+      id: ed25519_pk1npsal4j9p9nlfs0fsmfjyga9uqk5gcslyuvxy6pexxr0j34j83rsf98wl2
+    - address: "/ip4/13.113.10.64/tcp/3000"
+      id: ed25519_pk16pw2st5wgx4558c6temj8tzv0pqc37qqjpy53fstdyzwxaypveys3qcpfl
+    - address: /ip4/52.57.214.174/tcp/3000
+      id: ed25519_pk1v4cj0edgmp8f2m5gex85jglrs2ruvu4z7xgy8fvhr0ma2lmyhtyszxtejz
+    - address: /ip4/3.120.96.93/tcp/3000
+      id: ed25519_pk10gmg0zkxpuzkghxc39n3a646pdru6xc24rch987cgw7zq5pmytmszjdmvh
+    - address: /ip4/52.28.134.8/tcp/3000
+      id: ed25519_pk1unu66eej6h6uxv4j4e9crfarnm6jknmtx9eknvq5vzsqpq6a9vxqr78xrw
+    - address: /ip4/13.52.208.132/tcp/3000
+      id: ed25519_pk15ppd5xlg6tylamskqkxh4rzum26w9acph8gzg86w4dd9a88qpjms26g5q9
+    - address: /ip4/54.153.19.202/tcp/3000
+      id: ed25519_pk1j9nj2u0amlg28k27pw24hre0vtyp3ge0xhq6h9mxwqeur48u463s0crpfk
+  public_address: "/ip4/${my_public_ip}/tcp/8201"
+  private_id: 
+  topics_of_interest:
+    messages: high
+    blocks: high
+EOF
+				cat > config/genesis.hash <<- EOF
+adbdd5ede31637f6c9bad5c271eec0bc3d0cb9efb86a5b913bb55cba549d0770
+EOF
+				cat > start-node.sh <<- EOF
+#!/bin/bash
+homeDir="~/jormungandr/"
+${homeDir}bin/jormungandr --config ${homeDir}config/node-config.yaml --genesis-block-hash config/genesis.hash --secret ${homeDir}pool/Gamma/secret.yaml 2>&1 | tee -a ${homeDir}logs/jormungandr.log
+EOF
+				chmod +x start-node.sh
+'
+				say "installed Jormungandr ${DESIRED_RELEASE_CLEAN}" "log"
 			;;
 		esac
 		
@@ -126,16 +186,16 @@ case $OPERATION in
 
   wallet) 
 
-	if [ ${#} -lt 3 ]; then
-		usage ${0}
-		exit 1
-	fi
-
 	SUBCOMMAND=${2}
 	
 	case $SUBCOMMAND in
 	  new) # [WALLET_NAME]
 	
+		if [ ${#} -lt 3 ]; then
+			usage ${0}
+			exit 1
+		fi
+
 		WALLET_NAME=${3}
 		mkdir -p "${WALLET_FOLDER}/${WALLET_NAME}"
 		
@@ -163,6 +223,27 @@ case $OPERATION in
 
 	  ;; ###################################################################
 	
+	  list) # no parameters
+	  
+		for WALLET_FOLDER_NAME in ${WALLET_FOLDER}/*/     
+		do
+			WALLET_FOLDER_NAME=${WALLET_FOLDER_NAME%*/}      
+			echo ${WALLET_FOLDER_NAME##*/}    
+			if [ -f "${WALLET_FOLDER_NAME}/ed25519.account" ]; then
+				WALLET_ADDRESS=$(cat "${WALLET_FOLDER_NAME}/ed25519.account")
+				RESULT=$(${JCLI} rest v0 account get ${WALLET_ADDRESS} --host ${NODE_REST_URL} )
+				WALLET_BALANCE=$(${JCLI} rest v0 account get ${WALLET_ADDRESS} --host ${NODE_REST_URL} | grep '^value:' | sed -e 's/value: //' )
+				WALLET_BALANCE_NICE=$(printf "%'d Lovelaces" $WALLET_BALANCE)
+				say "  Address: ${WALLET_ADDRESS}"
+				say "  Balance: ${WALLET_BALANCE_NICE}"
+			else
+				say "Warn: missing wallet account file (${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account)"
+			fi
+		done
+
+		
+	  ;; ###################################################################
+	
 	  show) # [WALLET_NAME]
 		
 		WALLET_NAME=${3}
@@ -180,9 +261,9 @@ case $OPERATION in
 				RESULT=$(${JCLI} rest v0 account get ${WALLET_ADDRESS} --host ${NODE_REST_URL} )
 				WALLET_BALANCE=$(${JCLI} rest v0 account get ${WALLET_ADDRESS} --host ${NODE_REST_URL} | grep '^value:' | sed -e 's/value: //' )
 				WALLET_BALANCE_NICE=$(printf "%'d Lovelaces" $WALLET_BALANCE)
-				say "Address: ${WALLET_ADDRESS}" "log"
-				say "  Balance:    ${WALLET_BALANCE_NICE}" "log"
-				#printf "%b\n" "${RESULT}"
+				say "Address: ${WALLET_ADDRESS}"
+				say "  Balance:    ${WALLET_BALANCE_NICE}"
+				printf "%b\n" "${RESULT}"
 				
 			else
 				say "Error: no wallet $WALLET_NAME found (${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account)"
@@ -193,6 +274,11 @@ case $OPERATION in
 	
 	  remove) # [WALLET_NAME]
 	
+		if [ ${#} -lt 3 ]; then
+			usage ${0}
+			exit 1
+		fi
+
 		WALLET_NAME=${3}
 
 		if [ -f "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account" ]; then
@@ -204,9 +290,7 @@ case $OPERATION in
 				read -n 1 -p "Are you sure to delete secret/public key pairs (y/n)? " answer
 				case ${answer:0:1} in
 					y|Y )
-						rm "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.key"
-						rm "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.pub"
-						rm "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account"
+						rm -rf "${WALLET_FOLDER}/${WALLET_NAME}"
 						say "\nremoved ${WALLET_NAME}"
 					;;
 					* )
@@ -223,7 +307,7 @@ case $OPERATION in
 					read -n 1 -p "      Are you sure to delete secret/public key pairs (y/n)? " answer
 					case ${answer:0:1} in
 						y|Y )
-							rm -r "${WALLET_FOLDER}/${WALLET_NAME}"
+							rm -rf "${WALLET_FOLDER}/${WALLET_NAME}"
 							echo -e "\nremoved ${WALLET_NAME}"
 						;;
 						* )
@@ -322,7 +406,7 @@ case $OPERATION in
 		${JCLI} transaction add-account "${SOURCE_ADDRESS}" "${AMOUNT_WITH_FEES}" --staging "${STAGING_FILE}"
 		${JCLI} transaction add-output "${DESTINATION_ADDRESS}" "${AMOUNT}" --staging "${STAGING_FILE}"
 		${JCLI} transaction finalize --staging ${STAGING_FILE}
-		TRANSACTION_ID=$(${JCLI} transaction id --staging ${STAGING_FILE})
+		TRANSACTION_ID=$(${JCLI} transaction data-for-witness --staging ${STAGING_FILE})
 		WITNESS_SECRET_FILE="${TMPDIR}/witness.secret.$$"
 		WITNESS_OUTPUT_FILE="${TMPDIR}/witness.out.$$"
 
@@ -389,6 +473,7 @@ case $OPERATION in
 		if [ -f "$WALLET_FOLDER/${WALLET_NAME}/ed25519.account" ]; then
 			SOURCE_ADDRESS=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account")
 			SOURCE_KEY=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.key")
+			SOURCE_PUB=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.pub")
 			SOURCE_FILE="${WALLET_FOLDER}/${WALLET_NAME}/ed25519.key"
 		else
 			echo "Error: no wallet $WALLET_NAME found (${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account)"
@@ -434,16 +519,13 @@ case $OPERATION in
 		${JCLI} certificate new stake-pool-registration \
 		--kes-key $(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.pub") \
 		--vrf-key $(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.pub") \
-		--owner $(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.pub") \
+		--owner ${SOURCE_PUB} \
 		--serial $(date +%Y%m%d)"01" \
 		--management-threshold 1 \
 		--start-validity 0 > "$POOL_FOLDER/${POOL_NAME}/stake_pool.cert"
 
-		# sign the stake pool certificate with the pool owner wallet
-		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.cert" | ${JCLI} certificate sign "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.key" > "${POOL_FOLDER}/${POOL_NAME}/stake_pool.signcert"
-
 		# get the stake pool ID
-		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.signcert" | ${JCLI} certificate get-stake-pool-id > "${POOL_FOLDER}/${POOL_NAME}/stake_pool.id"
+		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.cert" | ${JCLI} certificate get-stake-pool-id > "${POOL_FOLDER}/${POOL_NAME}/stake_pool.id"
 		POOLID=$(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.id")
 
 		# note pool-ID, vrf and KES keys into a secret file
@@ -453,9 +535,9 @@ case $OPERATION in
 		STAGING_FILE="${TMPDIR}/staging.$$.transaction"
 		${JCLI} transaction new --staging ${STAGING_FILE}
 		${JCLI} transaction add-account "${SOURCE_ADDRESS}" "${AMOUNT_WITH_FEES}" --staging "${STAGING_FILE}"
-		${JCLI} transaction add-certificate --staging ${STAGING_FILE} $(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.signcert")
+		${JCLI} transaction add-certificate --staging ${STAGING_FILE} $(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.cert")
 		${JCLI} transaction finalize --staging ${STAGING_FILE}
-		TRANSACTION_ID=$(${JCLI} transaction id --staging ${STAGING_FILE})
+		TRANSACTION_ID=$(${JCLI} transaction data-for-witness --staging ${STAGING_FILE})
 		WITNESS_SECRET_FILE="${TMPDIR}/witness.secret.$$"
 		WITNESS_OUTPUT_FILE="${TMPDIR}/witness.out.$$"
 
@@ -469,6 +551,7 @@ case $OPERATION in
 
 		# Finalize the transaction and send it
 		${JCLI} transaction seal --staging "${STAGING_FILE}"
+		${JCLI} transaction auth -k ${WITNESS_SECRET_FILE} --staging "${STAGING_FILE}"
 		TXID=$(${JCLI} transaction to-message --staging "${STAGING_FILE}" | ${JCLI} rest v0 message post --host "${NODE_REST_URL}")
 
 		rm -r ${TMPDIR}
@@ -568,15 +651,14 @@ case $OPERATION in
 
 		# generate a delegation certificate (private wallet > stake pool)
 		${JCLI} certificate new stake-delegation ${POOLID} ${SOURCE_PUB} > "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.cert"
-		cat "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.cert" | ${JCLI} certificate sign ${MY_ED25519_stake_file} > "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.signcert"
 		
 		TMPDIR=$(mktemp -d)
 		STAGING_FILE="${TMPDIR}/staging.$$.transaction"
 		${JCLI} transaction new --staging ${STAGING_FILE}
 		${JCLI} transaction add-account "${SOURCE_ADDRESS}" "${AMOUNT_WITH_FEES}" --staging "${STAGING_FILE}"
-		${JCLI} transaction add-certificate --staging ${STAGING_FILE} $(cat "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.signcert")
+		${JCLI} transaction add-certificate --staging ${STAGING_FILE} $(cat "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.cert")
 		${JCLI} transaction finalize --staging ${STAGING_FILE}
-		TRANSACTION_ID=$(${JCLI} transaction id --staging ${STAGING_FILE})
+		TRANSACTION_ID=$(${JCLI} transaction data-for-witness --staging ${STAGING_FILE})
 		WITNESS_SECRET_FILE="${TMPDIR}/witness.secret.$$"
 		WITNESS_OUTPUT_FILE="${TMPDIR}/witness.out.$$"
 
@@ -590,6 +672,7 @@ case $OPERATION in
 
 		# Finalize the transaction and send it
 		${JCLI} transaction seal --staging "${STAGING_FILE}"
+		${JCLI} transaction auth -k ${WITNESS_SECRET_FILE} --staging "${STAGING_FILE}"
 		TXID=$(${JCLI} transaction to-message --staging "${STAGING_FILE}" | ${JCLI} rest v0 message post --host "${NODE_REST_URL}")
 
 		rm -r ${TMPDIR}

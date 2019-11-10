@@ -39,6 +39,14 @@ installed Jormungandr 0.5.5
 
 
 
+optionally specify a certain tag
+
+```
+./jtools.sh update v0.7.0-rc5
+```
+
+
+
 ## wallet
 
 ### new
@@ -62,6 +70,10 @@ address: ca1skn5f5fyaca7lz6hrjm2s4nhfect2zg2q05fkpul46h5kvy4a3pfulm738v
 You can now copy the address (starting with ca...) navigate to the [Testnet faucet](https://testnet.iohkdev.io/shelley/tools/faucet/), paste it in, and request free testnet ADA's.
 
 Tip: Already create a second wallet "Mars" for the next steps
+
+### list
+
+no arguments required. just list all wallets in wallet folder
 
 ### show
 
