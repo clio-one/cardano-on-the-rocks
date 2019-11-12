@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# jtools version 0.2
+# jtools version 0.3
 # 
 # inspired by scripts from @NicolasDP and @disassembler
 # 
@@ -650,7 +650,7 @@ EOF
 		MY_ED25519_stake_pub=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.pub")
 
 		# generate a delegation certificate (private wallet > stake pool)
-		${JCLI} certificate new stake-delegation ${POOLID} ${SOURCE_PUB} > "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.cert"
+		${JCLI} certificate new stake-delegation ${SOURCE_PUB} ${POOLID} > "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.cert"
 		
 		TMPDIR=$(mktemp -d)
 		STAGING_FILE="${TMPDIR}/staging.$$.transaction"
