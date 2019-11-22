@@ -114,7 +114,7 @@ case $OPERATION in
 					#cp -f config/* config/rollback
 					#rm -f config/*
 					#tar -xzf $FILE -C bin
-					tar -xzf $FILE
+					tar -C ${BASE_FOLDER} -xzf $FILE
 					rm $FILE
 					say "updated Jormungandr from ${CURRENT_VERSION} to ${DESIRED_RELEASE_CLEAN}" "log"
 				;;
@@ -141,7 +141,7 @@ case $OPERATION in
 				mkdir -p ${BASE_FOLDER}scripts
 				#mkdir -p ${BASE_FOLDER}www/cgi-bin
 				#tar -xzf $FILE -C bin
-				tar -xzf $FILE
+				tar -C ${BASE_FOLDER} -xzf $FILE
 				rm $FILE
 : '				my_public_ip=$(curl -4 ifconfig.co)
 				cat > config/node-config.yaml <<- EOF
