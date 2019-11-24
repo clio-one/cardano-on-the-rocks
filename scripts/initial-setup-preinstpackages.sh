@@ -4,10 +4,20 @@
 # for the Cardano on the Rocks (RockPi) project
 #
 # Author: m@rkus.it
-# version 2019-09-09
+#
+# version 2019-09-09 
+# initial release
+#
+# version 2019-11-20 
+# new INITIAL_SETUP_VERSION variable to handle different pre-built Armbian image versions
+# 191020 has more pre-installed more packages due to git clone timeouts in some contries (China)
+# 
 
 main() {
 
+	# INITIAL_SETUP_VERSION is set in the image's /usr/local/bin/cardano-on-the-rocks.sh script 
+	say "initial setup requested from Armbian image version ${INITIAL_SETUP_VERSION}"
+	
 	# collect system values
 	BOARD=`uname -n`
 	if [ -f /etc/os-release ]; then
@@ -51,18 +61,25 @@ main() {
 		echo 1 > value
 		cd ~
 		
-		say "clone OLED library" "log"
-		mkdir ~/cardano-on-the-rocks
-		cd ~/cardano-on-the-rocks
-		git clone https://github.com/clio-one/luma.oled.git
+		if [ ${INITIAL_SETUP_VERSION} < 191120 ] ; then
 		
-		say "install OLED library" "log"
-		cd luma.oled
-		sudo python setup.py install
-		cd ..
-		
-		say "clone Cardano display content" "log"
-		git clone https://github.com/clio-one/cardano-luma.git
+			say "clone OLED library" "log"
+			mkdir ~/cardano-on-the-rocks
+			cd ~/cardano-on-the-rocks
+			git clone https://github.com/clio-one/luma.oled.git
+			
+			say "install OLED library" "log"
+			cd luma.oled
+			sudo python setup.py install
+			cd ..
+			
+			say "clone Cardano display content" "log"
+			git clone https://github.com/clio-one/cardano-luma.git
+			
+			say "install the firewall" "log"
+			aptInstall iptables
+			aptInstall ufw
+		fi
 		
 		say "blue and green LED off" "log"
 		cd /sys/class/gpio
@@ -88,9 +105,7 @@ main() {
 		echo 1 > value
 		cd ~
 		
-		say "install and enable the firewall" "log"
-		aptInstall iptables
-		aptInstall ufw
+		say "enable SSH access" "log"
 		ufw allow ssh/tcp
 		ufw logging on
 		ufw --force enable
