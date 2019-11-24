@@ -10,7 +10,7 @@
 #
 # version 2019-11-20 
 # new INITIAL_SETUP_VERSION variable to handle different pre-built Armbian image versions
-# 191020 has more pre-installed more packages due to git clone timeouts in some contries (China)
+# 191020 has more pre-installed packages (git clone timeouts in some contries like China)
 # 
 
 main() {
@@ -52,14 +52,8 @@ main() {
 		
 		# pimp apt to retry 3 times (for weak internet connections)
 		echo "APT::Acquire::Retries \"3\";" > /etc/apt/apt.conf.d/80-retries
-		
-		say "turn also green LED on" "log"
-		cd /sys/class/gpio
-		echo $RGB_GPIO_GREEN > export
-		cd gpio$RGB_GPIO_GREEN
-		echo out > direction
-		echo 1 > value
-		cd ~
+
+		apt-get --yes update
 		
 		if [ ${INITIAL_SETUP_VERSION} < 191120 ] ; then
 		
@@ -68,19 +62,16 @@ main() {
 			cd ~/cardano-on-the-rocks
 			git clone https://github.com/clio-one/luma.oled.git
 			
-			say "install OLED library" "log"
-			cd luma.oled
-			sudo python setup.py install
-			cd ..
-			
 			say "clone Cardano display content" "log"
 			git clone https://github.com/clio-one/cardano-luma.git
 			
-			say "install the firewall" "log"
-			aptInstall iptables
-			aptInstall ufw
 		fi
 		
+		say "install OLED library" "log"
+		cd /root/luma.oled
+		sudo python setup.py install
+		cd ..
+
 		say "blue and green LED off" "log"
 		cd /sys/class/gpio
 		echo $RGB_GPIO_GREEN > export
@@ -105,10 +96,27 @@ main() {
 		echo 1 > value
 		cd ~
 		
-		say "enable SSH access" "log"
-		ufw allow ssh/tcp
-		ufw logging on
-		ufw --force enable
+		if [ ${INITIAL_SETUP_VERSION} < 191120 ] ; then
+		
+			say "install the firewall" "log"
+			aptInstall "iptables"
+			aptInstall "ufw"
+			say "enable SSH access" "log"
+			ufw allow ssh/tcp
+			ufw logging on
+			ufw --force enable
+
+			say "enable armbian-config"
+			aptInstall "armbian-config"
+
+			say "enable net-tools"
+			aptInstall "net-tools"
+
+			say "enable unzip"
+			aptInstall "unzip"
+
+		fi
+		
 		
 		say "Completing the initial setup and prepare for future boots" "log"
 		say "remove the initial setup script" "log"
