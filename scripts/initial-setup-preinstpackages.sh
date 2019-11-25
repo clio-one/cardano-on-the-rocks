@@ -116,12 +116,7 @@ main() {
 			aptInstall "unzip"
 
 		fi
-
-		if [ ${INITIAL_SETUP_VERSION} > 191120 ] ; then
-			aptInstall "git"
-			aptInstall "curl"
-			aptInstall "build-essential"
-		fi
+		
 		
 		say "Completing the initial setup and prepare for future boots" "log"
 		say "remove the initial setup script" "log"
