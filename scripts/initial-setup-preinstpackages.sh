@@ -68,7 +68,7 @@ main() {
 		fi
 		
 		say "install OLED library" "log"
-		cd /root/luma.oled
+		cd /root/cardano-on-the-rocks/luma.oled
 		sudo python setup.py install
 		cd ..
 
@@ -99,7 +99,7 @@ main() {
 		if [ ${INITIAL_SETUP_VERSION} < 191120 ] ; then
 		
 			say "install the firewall" "log"
-			aptInstall "iptables"
+			#aptInstall "iptables"
 			aptInstall "ufw"
 			say "enable SSH access" "log"
 			ufw allow ssh/tcp
@@ -109,8 +109,8 @@ main() {
 			say "enable armbian-config"
 			aptInstall "armbian-config"
 
-			say "enable net-tools"
-			aptInstall "net-tools"
+			#say "enable net-tools"
+			#aptInstall "net-tools"
 
 			say "enable unzip"
 			aptInstall "unzip"
