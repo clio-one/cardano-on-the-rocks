@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# jtools version 0.4 fixing breaking changes in Jormungandr 0.8 release
+# - removed serial option for pool registration
+#
 # jtools version 0.3 fixing breaking changes in Jormungandr 0.7 release
 # - paramaters for jcli new stake-delegation reordered
 #
