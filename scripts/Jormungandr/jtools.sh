@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# jtools version 0.5 
+# - optional wallet address prefixes
+# - optional TAX parameters for pool registration
+#
 # jtools version 0.4 fixing breaking changes in Jormungandr 0.8 release
 # - removed serial option for pool registration
 #
@@ -36,9 +40,13 @@ POOL_FOLDER=$BASE_FOLDER"pool"
 JTOOLS_LOG=${BASE_FOLDER}jtools-history.log
 
 # update from asset
-#ASSET_PLATTFORM="x86_64-unknown-linux-gnu"		# Debian, Ubuntu, CentOS 8,...
+ASSET_PLATTFORM="x86_64-unknown-linux-gnu"		# Debian, Ubuntu, CentOS 8,...
 #ASSET_PLATTFORM="x86_64-unknown-linux-musl"	# CentOS 7, ...
-ASSET_PLATTFORM="aarch64-unknown-linux-gnu" 	# Armbian, Raspian, RockPi, ARM 64bit, ...
+#ASSET_PLATTFORM="aarch64-unknown-linux-gnu" 	# Armbian, Raspian, RockPi, ARM 64bit, ...
+
+# decimal separators
+DD="."  # Decimal point delimiter, to separate whole and fractional values
+TD=","  # Add thousands separator using (,) to separate every three digits
 
 ###################################################################
 
@@ -49,7 +57,7 @@ usage() {
     echo ""
     echo "   $0 update"
     echo ""
-    echo "   $0 wallet new [WALLET_NAME]"
+    echo "   $0 wallet new [WALLET_NAME] [optional:WALLET_PREFIX]"
     echo "   $0 wallet list"
     echo "   $0 wallet show [WALLET_NAME]"
     echo "   $0 wallet remove [WALLET_NAME]"
@@ -57,11 +65,11 @@ usage() {
     echo "   $0 funds send [SOURCE_WALLET] [AMOUNT] [DESTINATION_ADDRESS|WALLET]"
     echo "           Note: Amount is an Integer value in Lovelaces"
     echo ""
-    echo "   $0 pool register [POOL_NAME] [WALLET_NAME]"
-    echo "           Note: Wallet is only used to pay the registration fee"
+    echo "   $0 pool register [POOL_NAME] [WALLET_OWNER] [WALLET_REWARDS] [TAX_FIXED] [TAX_PERMILLE] [optional:TAX_LIMIT]"
+    echo "           Note: you can use the same wallet for owner and rewards"
     echo ""
-    echo "   $0 stake delegate [WALLET_NAME] [POOL_NAME]"
-    echo "           Note: Entire Wallet balance (minus Fee) is delegated"
+    echo "   $0 stake delegate [WALLET_NAME] [POOL_NAME] [WALLET_TXFEE]"
+																		  
     echo ""
     echo "   Please donate some real ADA to"
     echo "   Ae2tdPwUPEZJy2DbueGwkLjCqNcypkj5Aa3waEZdvBKMsNqjNw2kTqPfyhe"
@@ -119,6 +127,7 @@ case $OPERATION in
 					#tar -xzf $FILE -C bin
 					tar -C ${BASE_FOLDER} -xzf $FILE
 					rm $FILE
+
 					say "updated Jormungandr from ${CURRENT_VERSION} to ${DESIRED_RELEASE_CLEAN}" "log"
 				;;
 			esac
@@ -201,7 +210,7 @@ EOF
 	SUBCOMMAND=${2}
 	
 	case $SUBCOMMAND in
-	  new) # [WALLET_NAME]
+	  new) # [WALLET_NAME] [WALLET_PREFIX]
 	
 		if [ ${#} -lt 3 ]; then
 			usage ${0}
@@ -209,6 +218,7 @@ EOF
 		fi
 
 		WALLET_NAME=${3}
+		WALLET_PREFIX=${4}
 		mkdir -p "${WALLET_FOLDER}/${WALLET_NAME}"
 		
 		if [  -f "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.key" ]; then
@@ -225,7 +235,12 @@ EOF
 		MY_ED25519_pub=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.pub")
 
 		# extract account address from wallet key
-		${JCLI} address account ${MY_ED25519_pub} --testing > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account"
+		if [ -z $WALLET_PREFIX ]; then
+			echo "Create account with prefix $WALLET_PREFIX"
+			${JCLI} address account ${MY_ED25519_pub} --testing > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account"
+		else
+			${JCLI} address account ${MY_ED25519_pub} --prefix=$WALLET_PREFIX --testing > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account"
+		fi
 		MY_ED25519_address=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account")
 		
 		say "New wallet $WALLET_NAME" "log"
@@ -240,12 +255,12 @@ EOF
 		for WALLET_FOLDER_NAME in ${WALLET_FOLDER}/*/     
 		do
 			WALLET_FOLDER_NAME=${WALLET_FOLDER_NAME%*/}      
-			echo ${WALLET_FOLDER_NAME##*/}    
+			say "~~~~~~ ${WALLET_FOLDER_NAME##*/} ~~~~~~~~~~~~~~~~~"
 			if [ -f "${WALLET_FOLDER_NAME}/ed25519.account" ]; then
 				WALLET_ADDRESS=$(cat "${WALLET_FOLDER_NAME}/ed25519.account")
 				RESULT=$(${JCLI} rest v0 account get ${WALLET_ADDRESS} --host ${NODE_REST_URL} )
 				WALLET_BALANCE=$(${JCLI} rest v0 account get ${WALLET_ADDRESS} --host ${NODE_REST_URL} | grep '^value:' | sed -e 's/value: //' )
-				WALLET_BALANCE_NICE=$(printf "%'d Lovelaces" $WALLET_BALANCE)
+				WALLET_BALANCE_NICE=$(printf "%'d Lovelaces" ${WALLET_BALANCE})
 				say "  Address: ${WALLET_ADDRESS}"
 				say "  Balance: ${WALLET_BALANCE_NICE}"
 			else
@@ -264,8 +279,8 @@ EOF
 			RESULT=$(${JCLI} rest v0 account get ${WALLET_NAME} --host ${NODE_REST_URL} )
 			WALLET_BALANCE=$(${JCLI} rest v0 account get ${WALLET_NAME} --host ${NODE_REST_URL} | grep '^value:' | sed -e 's/value: //' )
 			WALLET_BALANCE_NICE=$(printf "%'d Lovelaces" $WALLET_BALANCE)
-			say "Address: ${WALLET_ADDRESS}" "log"
-			say "  Balance: ${WALLET_BALANCE_NICE}" "log"
+			say "Address: ${WALLET_ADDRESS}"
+			say "  Balance: ${WALLET_BALANCE_NICE}"
 			printf "%b\n" "${RESULT}"
 		else # look for a local wallet account address
 			if [ -f "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account" ]; then
@@ -376,7 +391,7 @@ EOF
 			exit 1
 		fi
 
-		if [ ${#5} == "62" ]; then # looks like a 62 char account address
+		if [ ${#5} -gt "61" ]; then # looks like a 62+ char account address
 			DESTINATION_ADDRESS=${5}
 		else # look for a local wallet account address
 			if [ -f "$WALLET_FOLDER/${5}/ed25519.account" ]; then
@@ -407,7 +422,7 @@ EOF
 		FEES_NICE=$(printf "%'d Lovelaces" ${FEES})
 		AMOUNT_WITH_FEES=$((${AMOUNT} + ${FEES}))
 
-		if (( $AMOUNT_WITH_FEES >= $SOURCE_BALANCE )); then
+		if (( $AMOUNT_WITH_FEES = $SOURCE_BALANCE )); then
 			echo "ERROR: source wallet ($SOURCE_BALANCE) has not enough funds to send $AMOUNT and pay $((${FEE_CONSTANT} + 2 * ${FEE_COEFFICIENT})) in fees"
 			exit 1
 		fi
@@ -467,74 +482,106 @@ EOF
 	SUBCOMMAND=${2}
 	
 	case $SUBCOMMAND in
-	  register)  # [POOL_NAME] [WALLET_NAME]
+	  register)  # [POOL_NAME] [WALLET_OWNER] [WALLET_REWARDS] [TAX_FIXED] [TAX_PERMILLE] [optional:TAX_LIMIT]
 
 		POOL_NAME=${3}
-		WALLET_NAME=${4}
+		WALLET_OWNER=${4}
+		WALLET_REWARDS=${5}
+		TAX_FIXED=${6}
+		TAX_PERMILLE=${7}
+		TAX_LIMIT=${8}
 
-		if [ ${#} -lt 4 ]; then
+		if [ ${#} -lt 7 ]; then
 			usage ${0}
 			exit 1
 		fi
 
-		if [ -f "${POOL_FOLDER}/${POOL_NAME}/stake_pool.id" ]; then
-			echo "Error: Pool $POOL_NAME already exists (${POOL_FOLDER}/${POOL_NAME}/stake_pool.id)"
-			exit 1
-		fi
-		
-		if [ -f "$WALLET_FOLDER/${WALLET_NAME}/ed25519.account" ]; then
-			SOURCE_ADDRESS=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account")
-			SOURCE_KEY=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.key")
-			SOURCE_PUB=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519.pub")
-			SOURCE_FILE="${WALLET_FOLDER}/${WALLET_NAME}/ed25519.key"
+		if [ -f "$WALLET_FOLDER/${WALLET_OWNER}/ed25519.account" ]; then
+			OWNER_ADDRESS=$(cat "${WALLET_FOLDER}/${WALLET_OWNER}/ed25519.account")
+			OWNER_KEY=$(cat "${WALLET_FOLDER}/${WALLET_OWNER}/ed25519.key")
+			OWNER_PUB=$(cat "${WALLET_FOLDER}/${WALLET_OWNER}/ed25519.pub")
+			OWNER_FILE="${WALLET_FOLDER}/${WALLET_OWNER}/ed25519.key"
 		else
-			echo "Error: no wallet $WALLET_NAME found (${WALLET_FOLDER}/${WALLET_NAME}/ed25519.account)"
+			echo "Error: no wallet $WALLET_OWNER found (${WALLET_FOLDER}/${WALLET_OWNER}/ed25519.account)"
 			exit 1
 		fi
 		
-		SOURCE_BALANCE=$(${JCLI} rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
-		if (( $SOURCE_BALANCE == 0 )); then
-			echo "ERROR: source wallet balance is zero"
+		if [ -f "$WALLET_FOLDER/${WALLET_REWARDS}/ed25519.account" ]; then
+			REWARDS_ADDRESS=$(cat "${WALLET_FOLDER}/${WALLET_REWARDS}/ed25519.account")
+			REWARDS_KEY=$(cat "${WALLET_FOLDER}/${WALLET_REWARDS}/ed25519.key")
+			REWARDS_PUB=$(cat "${WALLET_FOLDER}/${WALLET_REWARDS}/ed25519.pub")
+			REWARDS_FILE="${WALLET_FOLDER}/${WALLET_REWARDS}/ed25519.key"
+		else
+			echo "Error: no wallet $WALLET_REWARDS found (${WALLET_FOLDER}/${WALLET_REWARDS}/ed25519.account)"
 			exit 1
 		fi
-		SOURCE_BALANCE_NICE=$(printf "%'d Lovelaces" ${SOURCE_BALANCE})
-		SOURCE_COUNTER=$(${JCLI} rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^counter:' | sed -e 's/counter: //' )
+		
+		OWNER_BALANCE=$(${JCLI} rest v0 account get "${OWNER_ADDRESS}" --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
+		if (( $OWNER_BALANCE == 0 )); then
+			echo "ERROR: wallet $WALLET_OWNER balance is zero"
+			exit 1
+		fi
+		OWNER_BALANCE_NICE=$(printf "%'d Lovelaces" ${OWNER_BALANCE})
+		OWNER_COUNTER=$(${JCLI} rest v0 account get "${OWNER_ADDRESS}" --host "${NODE_REST_URL}" | grep '^counter:' | sed -e 's/counter: //' )
+		if [ -f "${POOL_FOLDER}/${POOL_NAME}/stake_pool.id" ]; then
+			echo "INFO: Pool $POOL_NAME already exists. Register again with same keys and new tax values"
+			POOL_REGISTER_NEW=false
+		else
+			POOL_REGISTER_NEW=true
+		fi
+		
+		if [[ "$TAX_FIXED" =~ ^[0-9]+$ ]]; then
+			TAXES=$TAXES" --tax-fixed ${TAX_FIXED}"
+		fi
+		if [[ "$TAX_PERMILLE" =~ ^[0-9]+$ ]]; then
+			TAXES=$TAXES" --tax-ratio ${TAX_PERMILLE}/1000"
+		fi
+		if [[ "$TAX_LIMIT" =~ ^[0-9]+$ ]]; then
+			TAXES=$TAXES" --tax-limit ${TAX_LIMIT}"
+		fi
 		
 		# read the nodes blockchain settings (parameters are required for the next transactions)
 		settings="$(curl -s ${NODE_REST_URL}/v0/settings)"
 		FEE_CONSTANT=$(echo $settings | jq -r .fees.constant)
 		FEE_COEFFICIENT=$(echo $settings | jq -r .fees.coefficient)
-		FEE_CERTIFICATE=$(echo $settings | jq -r .fees.certificate)
+		if [ -z "$(echo $settings | grep "certificate_pool_registration")" ]; then
+			FEE_CERTIFICATE=$(echo $settings | jq -r .fees.certificate)
+		else
+			FEE_CERTIFICATE=$(echo $settings | jq -r .fees.per_certificate_fees.certificate_pool_registration)
+		fi
 		BLOCK0_HASH=$(echo $settings | jq -r .block0Hash)
 		AMOUNT_WITH_FEES=$((${FEE_CONSTANT} + ${FEE_COEFFICIENT} + ${FEE_CERTIFICATE}))
 		AMOUNT_WITH_FEES_NICE=$(printf "%'d Lovelaces" ${AMOUNT_WITH_FEES})
 
-		if (( $SOURCE_BALANCE <= AMOUNT_WITH_FEES )); then
-			echo "ERROR: source wallet balance is not sufficient to pay the registration fee"
+		if (( $OWNER_BALANCE <= AMOUNT_WITH_FEES )); then
+			echo "ERROR: owner wallet balance is not sufficient to pay the registration fee"
 			exit 1
 		fi
 
-		mkdir -p "${POOL_FOLDER}/${POOL_NAME}"
+		if [ "$POOL_REGISTER_NEW" = true ]; then
+			mkdir -p "${POOL_FOLDER}/${POOL_NAME}"
 
-		# generate pool owner wallet
-		${JCLI} key generate --type=Ed25519 > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.key"
-		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.key" | ${JCLI} key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.pub"
-		${JCLI} address account "$(cat ${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.pub)" --testing > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.address"
+			# generate pool owner wallet
+			#${JCLI} key generate --type=Ed25519 > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.key"
+			#cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.key" | ${JCLI} key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.pub"
+			#${JCLI} address account "$(cat ${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.pub)" --testing > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_owner_wallet.address"
 
-		# generate pool KES and VRF certificates
-		${JCLI} key generate --type=SumEd25519_12 > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.key"
-		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.key" | ${JCLI} key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.pub"
-		${JCLI} key generate --type=Curve25519_2HashDH > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.key"
-		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.key" | ${JCLI} key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.pub"
+			# generate pool KES and VRF certificates
+			${JCLI} key generate --type=SumEd25519_12 > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.key"
+			cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.key" | ${JCLI} key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.pub"
+			${JCLI} key generate --type=Curve25519_2HashDH > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.key"
+			cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.key" | ${JCLI} key to-public > "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.pub"
+		fi
 
 		# build stake pool certificate
 		${JCLI} certificate new stake-pool-registration \
 		--kes-key $(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_kes.pub") \
 		--vrf-key $(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool_vrf.pub") \
-		--owner ${SOURCE_PUB} \
-		--serial $(date +%Y%m%d)"01" \
+		--owner ${OWNER_PUB} \
+		--reward-account ${REWARDS_ADDRESS} \
 		--management-threshold 1 \
-		--start-validity 0 > "$POOL_FOLDER/${POOL_NAME}/stake_pool.cert"
+		--start-validity 0 > "$POOL_FOLDER/${POOL_NAME}/stake_pool.cert" \
+		${TAXES}
 
 		# get the stake pool ID
 		cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.cert" | ${JCLI} certificate get-stake-pool-id > "${POOL_FOLDER}/${POOL_NAME}/stake_pool.id"
@@ -546,18 +593,18 @@ EOF
 		TMPDIR=$(mktemp -d)
 		STAGING_FILE="${TMPDIR}/staging.$$.transaction"
 		${JCLI} transaction new --staging ${STAGING_FILE}
-		${JCLI} transaction add-account "${SOURCE_ADDRESS}" "${AMOUNT_WITH_FEES}" --staging "${STAGING_FILE}"
+		${JCLI} transaction add-account "${OWNER_ADDRESS}" "${AMOUNT_WITH_FEES}" --staging "${STAGING_FILE}"
 		${JCLI} transaction add-certificate --staging ${STAGING_FILE} $(cat "${POOL_FOLDER}/${POOL_NAME}/stake_pool.cert")
 		${JCLI} transaction finalize --staging ${STAGING_FILE}
 		TRANSACTION_ID=$(${JCLI} transaction data-for-witness --staging ${STAGING_FILE})
 		WITNESS_SECRET_FILE="${TMPDIR}/witness.secret.$$"
 		WITNESS_OUTPUT_FILE="${TMPDIR}/witness.out.$$"
 
-		printf "${SOURCE_KEY}" > ${WITNESS_SECRET_FILE}
+		printf "${OWNER_KEY}" > ${WITNESS_SECRET_FILE}
 		
 		${JCLI} transaction make-witness ${TRANSACTION_ID} \
 			--genesis-block-hash ${BLOCK0_HASH} \
-			--type "account" --account-spending-counter "${SOURCE_COUNTER}" \
+			--type "account" --account-spending-counter "${OWNER_COUNTER}" \
 			${WITNESS_OUTPUT_FILE} ${WITNESS_SECRET_FILE}
 		${JCLI} transaction add-witness ${WITNESS_OUTPUT_FILE} --staging "${STAGING_FILE}"
 
@@ -570,6 +617,8 @@ EOF
 
 		say "Registered new Pool ${POOL_NAME}" "log"
 		say "  Pool-ID:    ${POOLID}" "log"
+		say "  Owner:      ${OWNER_PUB}" "log"
+		say "  Rewards:    ${REWARDS_ADDRESS}" "log"
 		say "  Fees:       ${AMOUNT_WITH_FEES_NICE}" "log"
 		say "  TX-ID:      ${TXID}" "log"
 		say "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -601,10 +650,11 @@ EOF
 	SUBCOMMAND=${2}
 	
 	case $SUBCOMMAND in
-	  delegate)  # [WALLET_NAME] [POOL_NAME] 
+	  delegate)  # [WALLET_NAME] [POOL_NAME]
 		
-		POOL_NAME=${4}
+				
 		WALLET_NAME=${3}
+		POOL_NAME=${4}
 		
 		if [ ${#} -lt 4 ]; then
 			usage ${0}
@@ -628,47 +678,52 @@ EOF
 			exit 1
 		fi
 		SOURCE_BALANCE=$(${JCLI} rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^value:' | sed -e 's/value: //' )
+		SOURCE_BALANCE_NICE=$(printf "%'d Lovelaces" ${SOURCE_BALANCE})
 		if (( $SOURCE_BALANCE == 0 )); then
-			echo "ERROR: source wallet balance is zero"
+			echo "ERROR: fee wallet balance is zero"
 			exit 1
 		fi
-		SOURCE_BALANCE_NICE=$(printf "%'d Lovelaces" ${SOURCE_BALANCE})
+		
 		SOURCE_COUNTER=$(${JCLI} rest v0 account get "${SOURCE_ADDRESS}" --host "${NODE_REST_URL}" | grep '^counter:' | sed -e 's/counter: //' )
 
 		# read the nodes blockchain settings (parameters are required for the next transactions)
 		settings="$(curl -s ${NODE_REST_URL}/v0/settings)"
 		FEE_CONSTANT=$(echo $settings | jq -r .fees.constant)
 		FEE_COEFFICIENT=$(echo $settings | jq -r .fees.coefficient)
-		FEE_CERTIFICATE=$(echo $settings | jq -r .fees.certificate)
+		if [ -z "$(echo $settings | grep "certificate_pool_registration")" ]; then
+			FEE_CERTIFICATE=$(echo $settings | jq -r .fees.certificate)
+		else
+			FEE_CERTIFICATE=$(echo $settings | jq -r .fees.per_certificate_fees.certificate_stake_delegation)
+		fi
 		BLOCK0_HASH=$(echo $settings | jq -r .block0Hash)
 		AMOUNT_WITH_FEES=$((${FEE_CONSTANT} + ${FEE_COEFFICIENT} + ${FEE_CERTIFICATE}))
 		AMOUNT_WITH_FEES_NICE=$(printf "%'d Lovelaces" ${AMOUNT_WITH_FEES})
-		
+  
 		if (( $SOURCE_BALANCE <= AMOUNT_WITH_FEES )); then
-			echo "ERROR: source wallet balance is not sufficient to pay the registration fees"
+			echo "ERROR: wallet balance is not sufficient to pay the registration fees"
 			exit 1
 		fi
 
-		if [  -f "${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.key" ]; then
+		if [  -f "${WALLET_FOLDER}/${WALLET_NAME}/stake_delegation_${POOL_NAME}.cert" ]; then
 			say "WARN: A stake key for wallet ${WALLET_NAME} already exists"
 			exit 1
 		fi
 		
-		# create a personal wallet key
-		${JCLI} key generate --type=Ed25519 > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.key"
-		MY_ED25519_stake_key=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.key")
-		MY_ED25519_stake_file="${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.key"
-		echo "$MY_ED25519_stake_key" | ${JCLI} key to-public > "${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.pub"
-		MY_ED25519_stake_pub=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/ed25519_stake.pub")
+		# create a stake delegation key
+		#${JCLI} key generate --type=Ed25519 > "${WALLET_FOLDER}/${WALLET_NAME}/stake_delegation.key"
+		#MY_ED25519_stake_key=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/stake_delegation.key")
+		#MY_ED25519_stake_file="${WALLET_FOLDER}/${WALLET_NAME}/stake_delegation.key"
+		#echo "$MY_ED25519_stake_key" | ${JCLI} key to-public > "${WALLET_FOLDER}/${WALLET_NAME}/stake_delegation.pub"
+		#MY_ED25519_stake_pub=$(cat "${WALLET_FOLDER}/${WALLET_NAME}/stake_delegation.pub")
 
 		# generate a delegation certificate (private wallet > stake pool)
-		${JCLI} certificate new stake-delegation ${SOURCE_PUB} ${POOLID} > "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.cert"
+		${JCLI} certificate new stake-delegation ${SOURCE_PUB} ${POOLID} > "${WALLET_FOLDER}/${WALLET_NAME}/stake_delegation_${POOL_NAME}.cert"
 		
 		TMPDIR=$(mktemp -d)
 		STAGING_FILE="${TMPDIR}/staging.$$.transaction"
 		${JCLI} transaction new --staging ${STAGING_FILE}
 		${JCLI} transaction add-account "${SOURCE_ADDRESS}" "${AMOUNT_WITH_FEES}" --staging "${STAGING_FILE}"
-		${JCLI} transaction add-certificate --staging ${STAGING_FILE} $(cat "${WALLET_FOLDER}/${WALLET_NAME}/${POOL_NAME}_stake_delegation.cert")
+		${JCLI} transaction add-certificate --staging ${STAGING_FILE} $(cat "${WALLET_FOLDER}/${WALLET_NAME}/stake_delegation_${POOL_NAME}.cert")
 		${JCLI} transaction finalize --staging ${STAGING_FILE}
 		TRANSACTION_ID=$(${JCLI} transaction data-for-witness --staging ${STAGING_FILE})
 		WITNESS_SECRET_FILE="${TMPDIR}/witness.secret.$$"
@@ -735,6 +790,41 @@ say() {
 	fi
 }
 
+
+nicenumber()
+   {
+      # Note that we assume that '.' is the decimal separator in the INPUT value
+      # to this script. The decimal separator in the output value is '.'
+
+     integer=$(echo $1 | cut -d. -f1)        # Left of the decimal
+     decimal=$(echo $1 | cut -d. -f2)        # Right of the decimal
+     
+     # Check if number has more than the integer part.
+     if [ "$decimal" != "$1" ]; then
+        # There's a fractional part, so let's include it.
+        result="${DD:= '.'}$decimal"
+     fi
+
+     thousands=$integer
+
+     while [ $thousands -gt 999 ]; do
+          remainder=$(($thousands % 1000))    # Three least significant digits
+
+          # We need 'remainder' to be three digits. Do we need to add zeros?
+          while [ ${#remainder} -lt 3 ] ; do  # Force leading zeros
+              remainder="0$remainder"
+          done
+
+          result="${TD:=","}${remainder}${result}"    # Builds right to left
+          thousands=$(($thousands / 1000))    # To left of remainder, if any
+     done
+
+     nicenum="${thousands}${result}"
+     if [ ! -z $2 ] ; then
+        echo $nicenum
+     fi
+}
+   
 ##############################################################
 
 main "$@"
