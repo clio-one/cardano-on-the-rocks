@@ -69,7 +69,7 @@ main() {
 		
 		say "install OLED library" "log"
 		cd /root/cardano-on-the-rocks/luma.oled
-		sudo python setup.py install
+		sudo python3 setup.py install
 		cd ..
 
 		say "blue and green LED off" "log"
@@ -86,7 +86,7 @@ main() {
 		cd ~
 		
 		say "Show Cardano Logo on Display" "log"
-		sudo python ~/cardano-on-the-rocks/cardano-luma/examples/cardano-animation.py --display $OLED_DISPLAY_TYPE --i2c-port $OLED_I2C_PORT --rotate $OLED_ORIENTATION
+		sudo python3 ~/cardano-on-the-rocks/cardano-luma/examples/cardano-animation.py --display $OLED_DISPLAY_TYPE --i2c-port $OLED_I2C_PORT --rotate $OLED_ORIENTATION
 		
 		say "green LED on" "log"
 		cd /sys/class/gpio
@@ -144,7 +144,7 @@ main() {
 		
 		say "Cardano-on-the-Rocks service started"
 		
-		sudo python ~/cardano-on-the-rocks/cardano-luma/examples/cardano-animation.py --display $OLED_DISPLAY_TYPE --i2c-port $OLED_I2C_PORT --rotate $OLED_ORIENTATION
+		sudo python3 ~/cardano-on-the-rocks/cardano-luma/examples/cardano-animation.py --display $OLED_DISPLAY_TYPE --i2c-port $OLED_I2C_PORT --rotate $OLED_ORIENTATION
 		
 		# turn green RGBLed on
 		cd /sys/class/gpio
@@ -153,7 +153,7 @@ main() {
 		echo out > direction
 		echo 1 > value
 		
-		sudo python ~/cardano-on-the-rocks/cardano-luma/examples/cardano.py --display $OLED_DISPLAY_TYPE --i2c-port $OLED_I2C_PORT --rotate $OLED_ORIENTATION
+		sudo python3 ~/cardano-on-the-rocks/cardano-luma/examples/cardano.py --display $OLED_DISPLAY_TYPE --i2c-port $OLED_I2C_PORT --rotate $OLED_ORIENTATION
 		
 		say "launch apt-get update"
 		apt-get --yes update
